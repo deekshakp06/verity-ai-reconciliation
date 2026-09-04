@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verity — AI Reconciliation Agent</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="logo">🧾</div>
+    <div>
+      <div class="name">Verity <span class="pill">TRACK 4</span></div>
+      <div class="sub">"Match. Flag. Explain." · AI Reconciliation Agent</div>
+    </div>
+  </div>
+
+  <nav class="navtabs" id="navtabs">
+    <div class="navtab on" data-page="dashboard">Dashboard</div>
+    <div class="navtab" data-page="upload">Upload Data</div>
+    <div class="navtab" data-page="matched">Matched <span id="nav-matched-count"></span></div>
+    <div class="navtab" data-page="exceptions">Exceptions <span id="nav-exc-count"></span></div>
+    <div class="navtab" data-page="accuracy">Accuracy</div>
+    <div class="navtab" data-page="ask">Ask Verity</div>
+  </nav>
+
+  <div class="status" id="ai-status">
+    <div class="dot off" id="ai-dot"></div>
+    <span id="ai-status-text">Checking connection…</span>
+  </div>
+</div>
+
+<div id="status-banner"></div>
+
+<!-- ===================== DASHBOARD PAGE ===================== -->
+<section class="page" data-page="dashboard">
+
+  <div class="hero">
+    <div>
+      <h1>Verity <span>Reconciliation Engine</span></h1>
+      <p style="font-weight:600;color:#f59e0b;margin-bottom:4px;">"Match. Flag. Explain."</p>
+      <p>Autonomous schema-agnostic matching between payment and settlement records —
+         with honest, explainable exceptions instead of blind guesses.</p>
+    </div>
+    <button class="cta" id="run-btn">▶ Run Reconciliation</button>
+  </div>
+
+  <div class="dl-row" id="dl-row" style="display:none;">
+    <button class="cta cta-outline" id="download-btn">⬇ Download Report (CSV)</button>
+  </div>
+
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="label">✅ MATCH RATE</div>
+      <div class="value" id="m-match-rate">—</div>
+      <div class="foot foot-green" id="m-match-foot">Run reconciliation to see results</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">🎯 ACCURACY</div>
+      <div class="value" id="m-accuracy">—</div>
+      <div class="foot foot-muted" id="m-accuracy-foot">Demo data only</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">⚠️ EXCEPTIONS</div>
+      <div class="value" id="m-exceptions">—</div>
+      <div class="foot foot-amber">🚩 Flagged, not guessed</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">⚡ THROUGHPUT</div>
+      <div class="value" id="m-throughput">—</div>
+      <div class="foot foot-muted" id="m-throughput-foot">—</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>🧭 Pipeline Status</h3>
+    <div class="sub">Live agent stages</div>
+    <div id="pipeline-stages"></div>
+  </div>
+
+  <div class="panel" id="batch-panel" style="display:none;">
+    <h3>🏛️ Multi-Source: Settlement Batches vs. Bank Deposits</h3>
+    <div class="sub" id="batch-sub">Reported settlement totals verified against actual bank credits</div>
+    <div id="batch-list" class="scroll-list" style="max-height:280px;"></div>
+    <div id="batch-unrelated" style="margin-top:14px;"></div>
+  </div>
+
+  <div class="arch-section">
+    <h4>🏗️ How Verity works — architecture</h4>
+    <div class="sub">Five-stage pipeline · rule-based core with LLM assistance, never a black box</div>
+    <div class="arch-flow">
+      <div class="arch-box">
+        <div class="emoji">📄</div>
+        <div class="title">Schema Mapper</div>
+        <div class="desc">Reads unfamiliar column names + samples, maps to id/amount/date on its own</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">
+        <div class="emoji">🔗</div>
+        <div class="title">Matching Engine</div>
+        <div class="desc">Scores every candidate pair on amount, date + reference similarity</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">
+        <div class="emoji">🕵️</div>
+        <div class="title">Duplicate Detector</div>
+        <div class="desc">Flags near-identical settlement copies instead of guessing which is real</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">
+        <div class="emoji">💬</div>
+        <div class="title">Explainer (Groq)</div>
+        <div class="desc">Turns raw confidence scores into plain-English exception reasons</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">
+        <div class="emoji">🗂️</div>
+        <div class="title">Audit Logger</div>
+        <div class="desc">Every decision — matched or flagged — recorded with full reasoning</div>
+      </div>
+    </div>
+    <div class="tag-row">
+      <div class="tag">🐍 Python + Pandas</div>
+      <div class="tag">🧠 Groq LLaMA (free tier)</div>
+      <div class="tag">🔍 RapidFuzz matching</div>
+      <div class="tag">🌐 Flask + vanilla JS</div>
+      <div class="tag">✅ 52 automated tests</div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ===================== UPLOAD DATA PAGE ===================== -->
+<section class="page" data-page="upload" hidden>
+  <div class="panel">
+    <h3>📤 Try it on your own data</h3>
+    <div class="sub">Upload any two transaction CSVs — column names don't need to match anything. Leave both empty to use the built-in demo dataset.</div>
+    <div class="upload-row">
+      <label class="upload-box" id="payment-drop">
+        <input type="file" id="payment-file" accept=".csv" hidden>
+        <span class="upload-icon">📄</span>
+        <span class="upload-label" id="payment-file-label">Payment / source file (CSV)</span>
+      </label>
+      <label class="upload-box" id="settlement-drop">
+        <input type="file" id="settlement-file" accept=".csv" hidden>
+        <span class="upload-icon">🏦</span>
+        <span class="upload-label" id="settlement-file-label">Settlement / comparison file (CSV)</span>
+      </label>
+    </div>
+    <div class="upload-row" style="margin-top:8px;">
+      <label class="upload-box" id="bank-drop" style="border-color:#2a3348;">
+        <input type="file" id="bank-file" accept=".csv" hidden>
+        <span class="upload-icon">🏛️</span>
+        <span class="upload-label" id="bank-file-label">Bank statement (optional) — enables multi-source batch verification</span>
+      </label>
+    </div>
+    <button class="cta" id="clear-upload-btn" style="background:#181c26;color:#e6e8ec;box-shadow:none;">✕ Clear uploads, use demo data</button>
+    <div class="data-preview" id="data-preview"></div>
+  </div>
+  <button class="cta" id="run-btn-2">▶ Run Reconciliation</button>
+</section>
+
+<!-- ===================== MATCHED RECORDS PAGE ===================== -->
+<section class="page" data-page="matched" hidden>
+  <div class="panel">
+    <h3>✅ Matched Records — auto-closed with high confidence</h3>
+    <div class="sub">Every claimed match is inspectable here — not just a percentage. Scroll for more.</div>
+    <div id="matched-list" class="scroll-list">
+      <p class="empty-state">Run reconciliation from the Dashboard tab to see matched records here.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== EXCEPTIONS PAGE ===================== -->
+<section class="page" data-page="exceptions" hidden>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>🔎 Exceptions — not auto-matched on purpose</h3>
+      <div class="filter-tabs" id="filter-tabs">
+        <div class="on" data-filter="all">All</div>
+        <div data-filter="amount">Amount</div>
+        <div data-filter="duplicate">Duplicate</div>
+        <div data-filter="delayed">Delayed</div>
+      </div>
+    </div>
+    <div class="sub">Every flag has a specific, auditable reason · scroll for more</div>
+    <div id="exceptions-list" class="scroll-list">
+      <p class="empty-state">Run reconciliation from the Dashboard tab to see exceptions here.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ACCURACY PAGE ===================== -->
+<section class="page" data-page="accuracy" hidden>
+  <div class="panel">
+    <h3>📊 Accuracy — validated against ground truth</h3>
+    <div class="sub">Only available on the built-in demo dataset, since that's the only data where the correct answer is known in advance.</div>
+    <div id="accuracy-content">
+      <p class="empty-state">Run reconciliation on the demo dataset to see accuracy metrics here.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ASK VERITY PAGE ===================== -->
+<section class="page" data-page="ask" hidden>
+  <div class="panel">
+    <h3>💬 Ask Verity</h3>
+    <div class="sub">Ask about the reconciliation run in plain English</div>
+    <div id="chat-log" class="scroll-list" style="max-height:420px;"></div>
+    <div class="ask-row">
+      <input type="text" id="ask-input" placeholder='e.g. "why didn&#39;t TXN00042 match?" or "how many were amount mismatches?"'>
+      <button id="ask-send">Send →</button>
+    </div>
+  </div>
+</section>
+
+<script src="script.js"></script>
+</body>
+</html>

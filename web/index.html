@@ -41,8 +41,8 @@
     <div>
       <h1>Verity <span>Reconciliation Engine</span></h1>
       <p style="font-weight:600;color:#f59e0b;margin-bottom:4px;">"Match. Flag. Explain."</p>
-      <p>Autonomous schema-agnostic matching between payment and settlement records —
-         with honest, explainable exceptions instead of blind guesses.</p>
+      <p>Auto-detects exact verification or tolerance matching, checks settlement
+         batches against real bank deposits, and explains every exception — never a guess.</p>
     </div>
     <button class="cta" id="run-btn">▶ Run Reconciliation</button>
   </div>
@@ -74,12 +74,6 @@
     </div>
   </div>
 
-  <div class="panel">
-    <h3>🧭 Pipeline Status</h3>
-    <div class="sub">Live agent stages</div>
-    <div id="pipeline-stages"></div>
-  </div>
-
   <div class="panel" id="batch-panel" style="display:none;">
     <h3>🏛️ Multi-Source: Settlement Batches vs. Bank Deposits</h3>
     <div class="sub" id="batch-sub">Reported settlement totals verified against actual bank credits</div>
@@ -89,36 +83,36 @@
 
   <div class="arch-section">
     <h4>🏗️ How Verity works — architecture</h4>
-    <div class="sub">Five-stage pipeline · rule-based core with LLM assistance, never a black box</div>
+    <div class="sub">Auto-detects the right technique from your data · rule-based core with LLM assistance, never a black box</div>
     <div class="arch-flow">
       <div class="arch-box">
         <div class="emoji">📄</div>
-        <div class="title">Schema Mapper</div>
-        <div class="desc">Reads unfamiliar column names + samples, maps to id/amount/date on its own</div>
+        <div class="title">Your Data</div>
+        <div class="desc">CSV, Excel, or SQL — 2 files required, a 3rd bank statement optional</div>
       </div>
       <div class="arch-arrow">→</div>
       <div class="arch-box">
-        <div class="emoji">🔗</div>
-        <div class="title">Matching Engine</div>
-        <div class="desc">Scores every candidate pair on amount, date + reference similarity</div>
+        <div class="emoji">🧭</div>
+        <div class="title">Auto-Detection</div>
+        <div class="desc">Picks exact math or tolerance matching based on what the data actually offers</div>
       </div>
       <div class="arch-arrow">→</div>
       <div class="arch-box">
-        <div class="emoji">🕵️</div>
-        <div class="title">Duplicate Detector</div>
-        <div class="desc">Flags near-identical settlement copies instead of guessing which is real</div>
+        <div class="emoji">✅</div>
+        <div class="title">Verify or Match</div>
+        <div class="desc">Exact: Gross − Fee − Tax = Net. Tolerance: confidence-scored amount/date/reference</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box">
+        <div class="emoji">🏛️</div>
+        <div class="title">Batch Check</div>
+        <div class="desc">If a bank file is given, settlement batches verified against real deposits</div>
       </div>
       <div class="arch-arrow">→</div>
       <div class="arch-box">
         <div class="emoji">💬</div>
-        <div class="title">Explainer (Groq)</div>
-        <div class="desc">Turns raw confidence scores into plain-English exception reasons</div>
-      </div>
-      <div class="arch-arrow">→</div>
-      <div class="arch-box">
-        <div class="emoji">🗂️</div>
-        <div class="title">Audit Logger</div>
-        <div class="desc">Every decision — matched or flagged — recorded with full reasoning</div>
+        <div class="title">Explain &amp; Log</div>
+        <div class="desc">AI-written explanations for every exception, every decision auditable</div>
       </div>
     </div>
     <div class="tag-row">
@@ -126,7 +120,7 @@
       <div class="tag">🧠 Groq LLaMA (free tier)</div>
       <div class="tag">🔍 RapidFuzz matching</div>
       <div class="tag">🌐 Flask + vanilla JS</div>
-      <div class="tag">✅ 52 automated tests</div>
+      <div class="tag">✅ 55 automated tests</div>
     </div>
   </div>
 

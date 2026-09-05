@@ -26,7 +26,7 @@ load_dotenv()
 from schema_mapper import map_schema, apply_mapping
 from matcher import reconcile
 from explainer import explain_all_exceptions, explain_all_exact_exceptions
-from audit_log import write_audit_log, load_audit_log
+from audit_log import write_audit_log, write_audit_log_exact, load_audit_log
 from evaluate import evaluate_against_ground_truth, has_ground_truth, evaluate_exact_against_ground_truth
 from llm_client import get_client_and_model
 from auto_reconciler import run_auto_reconciliation
@@ -67,11 +67,26 @@ def status():
 
 @app.route("/api/demo-data")
 def demo_data():
-    """Returns a preview of the built-in demo dataset, for initial page load."""
-    if not os.path.exists(os.path.join(DATA_DIR, "payment_log.csv")):
-        return jsonify({"error": "Demo data not found. Run `python src/generate_data.py` first."}), 404
-    payments = pd.read_csv(os.path.join(DATA_DIR, "payment_log.csv"))
-    settlements = pd.read_csv(os.path.join(DATA_DIR, "settlement_file.csv"))
+    """
+    Returns a preview of the ACTUAL default dataset that "Run Reconciliation"
+    processes with zero uploads — the multi-source scenario (real Razorpay
+    schema + bank statement), not the older 2-file tolerance-matching demo.
+    Previously this endpoint was hardcoded to payment_log.csv/settlement_file.csv,
+    which meant the preview shown here never matched what actually ran —
+    genuinely confusing, since the numbers a user saw here (fake TXN IDs)
+    had nothing to do with the results they'd see after clicking Run.
+    """
+    required = [
+        "sample_internal_orders.csv",
+        "sample_razorpay_real_schema_settlement.csv",
+        "sample_razorpay_bank_statement.csv",
+    ]
+    if not all(os.path.exists(os.path.join(DATA_DIR, f)) for f in required):
+        return jsonify({"error": "Default multi-source demo data not found. Run `python src/generate_multi_source_data.py` first."}), 404
+
+    payments = pd.read_csv(os.path.join(DATA_DIR, "sample_internal_orders.csv"))
+    settlements = pd.read_csv(os.path.join(DATA_DIR, "sample_razorpay_real_schema_settlement.csv"))
+    bank = pd.read_csv(os.path.join(DATA_DIR, "sample_razorpay_bank_statement.csv"))
     return jsonify({
         "payment_preview": payments.head(5).to_dict(orient="records"),
         "payment_columns": list(payments.columns),
@@ -79,6 +94,9 @@ def demo_data():
         "settlement_preview": settlements.head(5).to_dict(orient="records"),
         "settlement_columns": list(settlements.columns),
         "settlement_count": len(settlements),
+        "bank_preview": bank.head(5).to_dict(orient="records"),
+        "bank_columns": list(bank.columns),
+        "bank_count": len(bank),
     })
 
 
@@ -245,6 +263,7 @@ def auto_reconcile_endpoint():
             {**o, "explanation": explanations.get(o["order_id"], o["reason"])}
             for o in result["orders"]
         ]
+        write_audit_log_exact(orders_with_explanations)
 
         response = {
             "strategy": "exact",

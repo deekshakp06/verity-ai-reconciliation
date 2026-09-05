@@ -66,12 +66,16 @@ async function loadDemoPreview() {
     const data = await res.json();
     document.getElementById("data-preview").innerHTML = `
       <div class="col">
-        <div class="col-title">📄 Payment log — raw (${data.payment_count} rows)</div>
+        <div class="col-title">📄 Internal orders — raw (${data.payment_count} rows)</div>
         ${renderTable(data.payment_preview, data.payment_columns)}
       </div>
       <div class="col">
-        <div class="col-title">🏦 Settlement file — raw (${data.settlement_count} rows)</div>
+        <div class="col-title">🏦 Razorpay settlement report — raw (${data.settlement_count} rows)</div>
         ${renderTable(data.settlement_preview, data.settlement_columns)}
+      </div>
+      <div class="col">
+        <div class="col-title">🏛️ Bank statement — raw (${data.bank_count} rows)</div>
+        ${renderTable(data.bank_preview, data.bank_columns)}
       </div>`;
   } catch (e) { /* silent — demo data may not exist yet */ }
 }
@@ -347,23 +351,6 @@ function renderAccuracyPage(result) {
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline status
-// ---------------------------------------------------------------------------
-function renderPipeline(result) {
-  const stages = [
-    ["📄 Schema Mapper", true],
-    ["🔗 Matching Engine", true],
-    ["🕵️ Duplicate Detector", true],
-    [`💬 Explainer (${result.model || "fallback"})`, result.ai_connected],
-    ["🗂️ Audit Logger", true],
-  ];
-  document.getElementById("pipeline-stages").innerHTML = stages.map(([name, online]) =>
-    `<div class="stage"><div class="stage-name">${name}</div>
-     <div class="${online ? 'badge-on' : 'badge-fallback'}">${online ? 'ONLINE' : 'FALLBACK'}</div></div>`
-  ).join("");
-}
-
-// ---------------------------------------------------------------------------
 // Main results render (Dashboard metrics + all dependent pages)
 // ---------------------------------------------------------------------------
 function renderResults(result) {
@@ -393,7 +380,6 @@ function renderResults(result) {
 
   renderExceptions();
   renderMatched();
-  renderPipeline(result);
   renderAccuracyPage(result);
   setAiStatus(result.ai_connected, result.model);
   document.getElementById("dl-row").style.display = "block";

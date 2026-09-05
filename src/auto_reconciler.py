@@ -217,6 +217,13 @@ def choose_strategy(df_a: pd.DataFrame, df_b: pd.DataFrame) -> dict:
             fee_id_col, id_overlap = _best_matching_id_column(fee_df, set(reference_df[ref_id_col].astype(str)))
 
     if fee_cols is not None and id_overlap >= MIN_ID_OVERLAP_FOR_EXACT_STRATEGY:
+        # Detect the settlement/batch/payout ID column too (if one exists) —
+        # needed so verify_exact() can recognize a "PENDING" status BEFORE
+        # doing any math check on that row. Without this, a row still
+        # awaiting settlement (money hasn't moved yet) gets silently run
+        # through the same math/unmatched checks as a fully settled one.
+        batch_id_col = detect_batch_id_column(fee_df, exclude=set(fee_cols.values()) | {fee_id_col})
+
         return {
             "strategy": "exact",
             "reason": (
@@ -226,6 +233,7 @@ def choose_strategy(df_a: pd.DataFrame, df_b: pd.DataFrame) -> dict:
             ),
             "fee_columns": fee_cols,
             "fee_id_column": fee_id_col,
+            "batch_id_column": batch_id_col,
             "id_overlap": round(id_overlap, 3),
             "fee_source_is_a": fee_df is df_a,
         }
@@ -254,7 +262,7 @@ def _find_date_column(df: pd.DataFrame) -> str | None:
     return scored.get("date")
 
 
-def verify_exact(reference_df: pd.DataFrame, fee_df: pd.DataFrame, fee_cols: dict, fee_id_col: str) -> dict:
+def verify_exact(reference_df: pd.DataFrame, fee_df: pd.DataFrame, fee_cols: dict, fee_id_col: str, batch_id_col: str = None) -> dict:
     """
     Generalized exact-math verification — the same priority-ordered logic
     as three_way_reconciler.verify_orders, but parameterized by whatever
@@ -265,6 +273,11 @@ def verify_exact(reference_df: pd.DataFrame, fee_df: pd.DataFrame, fee_cols: dic
     in choose_strategy) rather than re-derived here, since a fee-breakdown
     source can have multiple id-like columns and only one is the correct
     join key against this specific reference source.
+
+    batch_id_col (optional) is checked FIRST, before any math — a row whose
+    settlement/batch ID literally says "PENDING" hasn't had money move yet,
+    so running it through the math/unmatched checks would be meaningless
+    (and, worse, silently misclassify it as verified or a math error).
     """
     ref_id_col = _find_id_column(reference_df)
     if ref_id_col is None:
@@ -293,7 +306,13 @@ def verify_exact(reference_df: pd.DataFrame, fee_df: pd.DataFrame, fee_cols: dic
         date_a = ref_dates_by_id.get(order_id)
         date_b = row[fee_date_col] if fee_date_col else None
 
-        if gross < 0 or "refund" in order_id.lower():
+        if batch_id_col and str(row.get(batch_id_col, "")).strip().upper() == "PENDING":
+            status = "pending_settlement"
+            reason = (
+                f"Settlement is still PENDING for {order_id} — the bank deposit hasn't "
+                f"happened yet. This is a timing state, not a failure."
+            )
+        elif gross < 0 or "refund" in order_id.lower():
             base_id = re.sub(r"_?refund$", "", order_id, flags=re.IGNORECASE)
             status = "prior_period_deduction"
             reason = (
@@ -351,7 +370,14 @@ def verify_settlement_batches(
     batches = []
     matched_bank_row_indices = set()
 
-    for batch_id, group in fee_df.groupby(batch_id_col):
+    # Rows still awaiting settlement share the literal placeholder value
+    # "PENDING" instead of a real batch ID — grouping those together would
+    # create a fake "PENDING" batch and incorrectly report it as having no
+    # bank deposit, when the honest answer is simply "not applicable yet".
+    settled_df = fee_df[fee_df[batch_id_col].astype(str).str.strip().str.upper() != "PENDING"]
+    pending_count = len(fee_df) - len(settled_df)
+
+    for batch_id, group in settled_df.groupby(batch_id_col):
         reported_total = round(float(group[fee_cols["net"]].sum()), 2)
         match_mask = bank_desc.str.contains(re.escape(str(batch_id)), case=False, na=False)
         matched_rows = bank_df[match_mask]
@@ -391,7 +417,7 @@ def verify_settlement_batches(
         for _, row in unrelated_rows.iterrows()
     ]
 
-    return {"batches": batches, "unrelated_bank_lines": unrelated}
+    return {"batches": batches, "unrelated_bank_lines": unrelated, "pending_count": pending_count}
 
 
 def run_auto_reconciliation(df_a: pd.DataFrame, df_b: pd.DataFrame, bank_df: pd.DataFrame = None) -> dict:
@@ -413,11 +439,14 @@ def run_auto_reconciliation(df_a: pd.DataFrame, df_b: pd.DataFrame, bank_df: pd.
 
     if decision["strategy"] == "exact":
         fee_df, reference_df = (df_a, df_b) if decision["fee_source_is_a"] else (df_b, df_a)
-        result = verify_exact(reference_df, fee_df, decision["fee_columns"], decision["fee_id_column"])
+        result = verify_exact(
+            reference_df, fee_df, decision["fee_columns"], decision["fee_id_column"],
+            batch_id_col=decision.get("batch_id_column"),
+        )
 
         batch_result = None
         if bank_df is not None:
-            batch_id_col = detect_batch_id_column(fee_df, exclude=set(decision["fee_columns"].values()) | {decision["fee_id_column"]})
+            batch_id_col = decision.get("batch_id_column")
             bank_cols = detect_bank_columns(bank_df)
             if batch_id_col and bank_cols:
                 batch_result = verify_settlement_batches(fee_df, decision["fee_columns"], batch_id_col, bank_df, bank_cols)

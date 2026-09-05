@@ -290,3 +290,68 @@ def test_exact_engine_ground_truth_validation_on_real_sample_if_present():
     assert metrics is not None
     assert metrics["accuracy"] == 100.0  # every planted issue should be classified correctly
     assert metrics["mistakes"] == []
+
+
+def test_exact_verification_writes_audit_log_for_ask_verity():
+    """Regression guard: uploading 3 files (triggering exact verification)
+    must actually write to the audit log — otherwise "Ask Verity" reads an
+    empty/stale log and confidently answers wrong, even though the
+    Exceptions tab correctly shows real results moments earlier. This
+    exact scenario was reported live from a deployed instance."""
+    import json
+    import os as _os
+    from audit_log import write_audit_log_exact, load_audit_log, LOG_PATH
+
+    internal, settlement, bank = _make_three_source_scenario()
+    result = run_auto_reconciliation(internal, settlement, bank_df=bank)
+    orders = result["exact_result"]["orders"]
+
+    orders_with_explanation = [{**o, "explanation": o["reason"]} for o in orders]
+    write_audit_log_exact(orders_with_explanation)
+
+    log = load_audit_log()
+    assert len(log) == len(orders)
+    assert all("payment_id" in entry for entry in log)
+    # every real order_id must be findable by payment_id, since that's
+    # exactly what /api/ask filters on
+    logged_ids = {entry["payment_id"] for entry in log}
+    assert logged_ids == {o["order_id"] for o in orders}
+
+
+def test_generalized_engine_correctly_detects_pending_settlements():
+    """Regression guard: the generalized auto_reconciler engine originally
+    had NO pending-status handling at all (unlike three_way_reconciler.py,
+    which this was meant to generalize) — a row with settlement_id=PENDING
+    would silently run through math/unmatched checks instead of being
+    correctly recognized as 'not settled yet, not a failure'. Found live
+    against a real user's 3-CSV upload where 10 genuinely pending rows
+    were reported as 0 by Ask Verity."""
+    internal = pd.DataFrame([
+        {"internal_order_ref": "order_1", "billed_amount": 1000.0, "order_created_on": "2026-08-01"},
+        {"internal_order_ref": "order_2", "billed_amount": 2000.0, "order_created_on": "2026-08-01"},
+    ])
+    settlement = pd.DataFrame([
+        {"entity_id": "pay_1", "order_id": "order_1", "amount": 1000.0, "fee": 20.0, "tax": 3.6,
+         "credit": 976.4, "settlement_id": "setl_A"},
+        {"entity_id": "pay_2", "order_id": "order_2", "amount": 2000.0, "fee": 40.0, "tax": 7.2,
+         "credit": 1952.8, "settlement_id": "PENDING"},
+    ])
+    result = run_auto_reconciliation(internal, settlement)
+    statuses = {o["order_id"]: o["status"] for o in result["exact_result"]["orders"]}
+    assert statuses["order_1"] == "verified"
+    assert statuses["order_2"] == "pending_settlement"
+
+
+def test_pending_rows_excluded_from_batch_verification_not_grouped_as_fake_batch():
+    """A batch of PENDING rows must never be treated as if 'PENDING' were
+    a real settlement ID to check against the bank."""
+    internal = pd.DataFrame([{"internal_order_ref": "order_1", "billed_amount": 1000.0, "order_created_on": "2026-08-01"}])
+    settlement = pd.DataFrame([
+        {"entity_id": "pay_1", "order_id": "order_1", "amount": 1000.0, "fee": 20.0, "tax": 3.6,
+         "credit": 976.4, "settlement_id": "PENDING"},
+    ])
+    bank = pd.DataFrame([{"date": "2026-08-03", "narration": "NEFT CR-RAZORPAY-PENDING", "credit": 976.4}])
+    result = run_auto_reconciliation(internal, settlement, bank_df=bank)
+    batch_ids = [b["batch_id"] for b in result["batch_result"]["batches"]]
+    assert "PENDING" not in batch_ids
+    assert result["batch_result"]["pending_count"] == 1

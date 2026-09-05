@@ -4,7 +4,7 @@
 
 **🔴 Live demo:** [verity-ai-reconciliation.onrender.com](https://verity-ai-reconciliation.onrender.com)
 
-Built by Deeksha K P S· MITE Mangalore
+Built by Deeksha K P · MITE Mangalore
 
 ---
 

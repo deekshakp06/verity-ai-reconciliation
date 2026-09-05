@@ -41,6 +41,8 @@ Given any two (or three) financial data files, Verity automatically:
 
 ## 3. Architecture
 
+![Verity Architecture](Verity_Architecture_Design.png)
+
 **Two engines, picked automatically — never manually:**
 
 | | Tolerance matching (`matcher.py`) | Exact verification (`auto_reconciler.py`) |

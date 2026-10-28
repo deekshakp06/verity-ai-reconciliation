@@ -46,14 +46,17 @@ activity and explicitly excluded, not treated as unmatched settlements.
 import re
 from dataclasses import dataclass, field
 import pandas as pd
+from decimal import Decimal
 
 from logger import get_logger
+from money import D, money_sum
 
 logger = get_logger(__name__)
 
 # Rounding tolerance for "the math matches" — a couple of paise of floating
 # point noise is fine; anything beyond this is a genuine discrepancy.
 MATH_EPSILON = 0.02
+MATH_EPSILON_D = Decimal(str(MATH_EPSILON))
 
 # Expected MDR (merchant discount rate) percentage by payment method. This is
 # what makes fee verification "exact" rather than "guessed": a premium card
@@ -145,14 +148,14 @@ def verify_orders(sales: pd.DataFrame, gateway: pd.DataFrame) -> list[OrderVerdi
         order_id = str(row["Order_ID"])
         settlement_id = row.get("Settlement_ID")
         payment_method = str(row.get("Payment_Method", "")).strip()
-        gross = float(row["Gross_Amount"])
-        fee = float(row["MDR_Fee"])
-        tax = float(row["Tax_on_Fee"])
-        net = float(row["Net_Amount"])
-        expected_net = round(gross - fee - tax, 2)
-        math_diff = round(net - expected_net, 2)
+        gross = D(row["Gross_Amount"])
+        fee = D(row["MDR_Fee"])
+        tax = D(row["Tax_on_Fee"])
+        net = D(row["Net_Amount"])
+        expected_net = gross - fee - tax      # exact Decimal arithmetic
+        math_diff = net - expected_net
 
-        effective_pct = round(fee / gross * 100, 2) if gross else None
+        effective_pct = round(float(fee / gross * 100), 2) if gross else None
         expected_pct = EXPECTED_MDR_PCT.get(payment_method.lower())
 
         # --- Priority 1: pending settlement -------------------------------
@@ -160,12 +163,12 @@ def verify_orders(sales: pd.DataFrame, gateway: pd.DataFrame) -> list[OrderVerdi
             verdicts.append(OrderVerdict(
                 order_id=order_id, status="pending_settlement",
                 settlement_id=settlement_id, payment_method=payment_method,
-                gross_amount=gross, mdr_fee=fee, tax_on_fee=tax, net_amount=net,
-                expected_net=expected_net, math_diff=math_diff,
+                gross_amount=float(gross), mdr_fee=float(fee), tax_on_fee=float(tax), net_amount=float(net),
+                expected_net=float(expected_net), math_diff=float(math_diff),
                 effective_mdr_pct=effective_pct, expected_mdr_pct=expected_pct,
                 reason=(
                     f"Settlement is still PENDING — the bank deposit hasn't happened yet. "
-                    f"This is a timing state, not a failure; fee math ({'checks out' if abs(math_diff) <= MATH_EPSILON else 'does NOT check out — worth a look once settled'})."
+                    f"This is a timing state, not a failure; fee math ({'checks out' if abs(math_diff) <= MATH_EPSILON_D else 'does NOT check out — worth a look once settled'})."
                 ),
             ))
             continue
@@ -177,8 +180,8 @@ def verify_orders(sales: pd.DataFrame, gateway: pd.DataFrame) -> list[OrderVerdi
             verdicts.append(OrderVerdict(
                 order_id=order_id, status="prior_period_deduction",
                 settlement_id=settlement_id, payment_method=payment_method,
-                gross_amount=gross, mdr_fee=fee, tax_on_fee=tax, net_amount=net,
-                expected_net=expected_net, math_diff=math_diff,
+                gross_amount=float(gross), mdr_fee=float(fee), tax_on_fee=float(tax), net_amount=float(net),
+                expected_net=float(expected_net), math_diff=float(math_diff),
                 effective_mdr_pct=effective_pct, expected_mdr_pct=expected_pct,
                 reason=(
                     f"Negative/refund-style entry for {order_id} (₹{net:.2f}) — "
@@ -189,12 +192,12 @@ def verify_orders(sales: pd.DataFrame, gateway: pd.DataFrame) -> list[OrderVerdi
             continue
 
         # --- Priority 3: math error ----------------------------------------
-        if abs(math_diff) > MATH_EPSILON:
+        if abs(math_diff) > MATH_EPSILON_D:
             verdicts.append(OrderVerdict(
                 order_id=order_id, status="math_error",
                 settlement_id=settlement_id, payment_method=payment_method,
-                gross_amount=gross, mdr_fee=fee, tax_on_fee=tax, net_amount=net,
-                expected_net=expected_net, math_diff=math_diff,
+                gross_amount=float(gross), mdr_fee=float(fee), tax_on_fee=float(tax), net_amount=float(net),
+                expected_net=float(expected_net), math_diff=float(math_diff),
                 effective_mdr_pct=effective_pct, expected_mdr_pct=expected_pct,
                 reason=(
                     f"Math doesn't add up: {gross:.2f} - {fee:.2f} (fee) - {tax:.2f} (tax) "
@@ -209,8 +212,8 @@ def verify_orders(sales: pd.DataFrame, gateway: pd.DataFrame) -> list[OrderVerdi
             verdicts.append(OrderVerdict(
                 order_id=order_id, status="unmatched_to_sales",
                 settlement_id=settlement_id, payment_method=payment_method,
-                gross_amount=gross, mdr_fee=fee, tax_on_fee=tax, net_amount=net,
-                expected_net=expected_net, math_diff=math_diff,
+                gross_amount=float(gross), mdr_fee=float(fee), tax_on_fee=float(tax), net_amount=float(net),
+                expected_net=float(expected_net), math_diff=float(math_diff),
                 effective_mdr_pct=effective_pct, expected_mdr_pct=expected_pct,
                 reason=(
                     f"Gateway settled {order_id} but it doesn't exist in Internal Sales — "
@@ -237,8 +240,8 @@ def verify_orders(sales: pd.DataFrame, gateway: pd.DataFrame) -> list[OrderVerdi
         verdicts.append(OrderVerdict(
             order_id=order_id, status="verified",
             settlement_id=settlement_id, payment_method=payment_method,
-            gross_amount=gross, mdr_fee=fee, tax_on_fee=tax, net_amount=net,
-            expected_net=expected_net, math_diff=math_diff,
+            gross_amount=float(gross), mdr_fee=float(fee), tax_on_fee=float(tax), net_amount=float(net),
+            expected_net=float(expected_net), math_diff=float(math_diff),
             effective_mdr_pct=effective_pct, expected_mdr_pct=expected_pct,
             reason=f"Gross - fee - tax matches Net exactly, and the order exists in Internal Sales.{fee_note}",
         ))
@@ -260,30 +263,30 @@ def verify_settlement_batches(gateway: pd.DataFrame, bank: pd.DataFrame) -> list
         if str(settlement_id).strip().upper() == "PENDING":
             results.append(SettlementBatchVerdict(
                 settlement_id=settlement_id,
-                reported_net_total=round(group["Net_Amount"].sum(), 2),
+                reported_net_total=float(money_sum(group["Net_Amount"])),
                 bank_deposit=None, diff=None, status="pending",
                 reason=f"{len(group)} order(s) still pending settlement — no bank deposit expected yet.",
             ))
             continue
 
-        reported_total = round(group["Net_Amount"].sum(), 2)
+        reported_total = money_sum(group["Net_Amount"])
         match_mask = bank_desc.str.contains(re.escape(str(settlement_id)), case=False, na=False)
         matched_rows = bank[match_mask]
 
         if matched_rows.empty:
             results.append(SettlementBatchVerdict(
-                settlement_id=settlement_id, reported_net_total=reported_total,
+                settlement_id=settlement_id, reported_net_total=float(reported_total),
                 bank_deposit=None, diff=None, status="no_bank_record",
                 reason=f"No bank deposit found referencing {settlement_id} yet.",
             ))
             continue
 
-        deposit = float(matched_rows["Credit"].sum())
-        diff = round(deposit - reported_total, 2)
-        if abs(diff) > MATH_EPSILON:
+        deposit = money_sum(matched_rows["Credit"])
+        diff = deposit - reported_total
+        if abs(diff) > MATH_EPSILON_D:
             results.append(SettlementBatchVerdict(
-                settlement_id=settlement_id, reported_net_total=reported_total,
-                bank_deposit=deposit, diff=diff, status="mismatch",
+                settlement_id=settlement_id, reported_net_total=float(reported_total),
+                bank_deposit=float(deposit), diff=float(diff), status="mismatch",
                 reason=(
                     f"Gateway report says {settlement_id} should total ₹{reported_total:.2f}, "
                     f"but the bank actually deposited ₹{deposit:.2f} — a ₹{abs(diff):.2f} "
@@ -292,8 +295,8 @@ def verify_settlement_batches(gateway: pd.DataFrame, bank: pd.DataFrame) -> list
             ))
         else:
             results.append(SettlementBatchVerdict(
-                settlement_id=settlement_id, reported_net_total=reported_total,
-                bank_deposit=deposit, diff=diff, status="verified",
+                settlement_id=settlement_id, reported_net_total=float(reported_total),
+                bank_deposit=float(deposit), diff=float(diff), status="verified",
                 reason=f"Bank deposit of ₹{deposit:.2f} matches the reported settlement total exactly.",
             ))
 

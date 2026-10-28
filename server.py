@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from dotenv import load_dotenv
 load_dotenv()
 
+from logger import get_logger
 from schema_mapper import map_schema, apply_mapping
 from matcher import reconcile
 from explainer import explain_all_exceptions, explain_all_exact_exceptions
@@ -30,11 +31,81 @@ from audit_log import write_audit_log, write_audit_log_exact, load_audit_log
 from evaluate import evaluate_against_ground_truth, has_ground_truth, evaluate_exact_against_ground_truth
 from llm_client import get_client_and_model
 from auto_reconciler import run_auto_reconciliation
+from excel_export import build_workbook
+from exception_store import ExceptionStore, dataset_key as make_dataset_key
+
+logger = get_logger(__name__)
 
 DATA_DIR = "data"
 WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 
 app = Flask(__name__, static_folder=WEB_DIR, static_url_path="")
+
+_store = None
+
+
+_db_error = None
+
+
+def get_store() -> ExceptionStore:
+    """Created on first use so importing the server never touches the database.
+    If the configured database (VERITY_DB_URL) can't be reached, fall back to the
+    local SQLite file and report it via /api/status instead of failing every run."""
+    global _store, _db_error
+    if _store is None:
+        try:
+            _store = ExceptionStore()
+        except Exception as e:  # driver missing, bad URL, network, wrong password
+            _db_error = f"{type(e).__name__}: {str(e).splitlines()[0][:160]}"
+            logger.error("Could not use the configured database (%s); falling back to local SQLite", _db_error)
+            os.environ.pop("VERITY_DB_URL", None)
+            _store = ExceptionStore()
+    return _store
+
+
+@app.errorhandler(Exception)
+def _json_errors(e):
+    """API routes always answer in JSON, so the UI shows a real message, not an HTML page."""
+    from werkzeug.exceptions import HTTPException
+    if request.path.startswith("/api/"):
+        if isinstance(e, HTTPException):
+            return jsonify({"error": e.description}), e.code
+        logger.exception("Unhandled error on %s", request.path)
+        return jsonify({"error": f"{type(e).__name__}: {str(e).splitlines()[0][:200]}"}), 500
+    if isinstance(e, HTTPException):
+        return e
+    raise e
+
+
+@app.route("/api/export", methods=["POST"])
+def export_excel():
+    """Excel report built from the results the page already holds, plus saved reviews."""
+    from flask import send_file
+    body = request.get_json(force=True) or {}
+    matched, exceptions = body.get("matched") or [], body.get("exceptions") or []
+    kinds = body.get("kinds") or {}
+    reviews = get_store().get_reviews(body["dataset_key"]) if body.get("dataset_key") else {}
+    data = build_workbook(matched, exceptions, reviews, kind_of=lambda e: kinds.get(str(e.get("payment_id")), ""),
+                          meta={"method": body.get("method", "")})
+    return send_file(io.BytesIO(data), as_attachment=True, download_name="verity_report.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.route("/api/review", methods=["POST"])
+def save_review():
+    body = request.get_json(force=True) or {}
+    try:
+        rec = get_store().set_review(
+            body.get("dataset_key"), body.get("payment_id"), body.get("status"),
+            body.get("note", ""), body.get("reviewer", ""))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(rec)
+
+
+@app.route("/api/review/<dataset_key>/<payment_id>/history")
+def review_history(dataset_key, payment_id):
+    return jsonify(get_store().history(dataset_key, payment_id))
 
 
 def _decision_to_dict(d):
@@ -48,6 +119,7 @@ def _decision_to_dict(d):
         "amount_b": d.amount_b,
         "date_a": d.date_a,
         "date_b": d.date_b,
+        "flags": list(getattr(d, "flags", [])),
     }
 
 
@@ -56,12 +128,39 @@ def index():
     return send_from_directory(WEB_DIR, "index.html")
 
 
+SAMPLE_FILES = {
+    "hard_payment_log.csv", "hard_settlement_file.csv",
+}
+
+
+@app.route("/api/sample/<name>")
+def sample_file(name):
+    """Serves the bundled hard test set so the UI can load it in one click."""
+    if name not in SAMPLE_FILES:
+        return jsonify({"error": "Unknown sample file"}), 404
+    return send_from_directory(DATA_DIR, name, mimetype="text/csv")
+
+
+def _best_ground_truth(decisions):
+    """Score against whichever labelled set the payment IDs belong to
+    (the standard demo set or the hard set); None for unlabelled data."""
+    best = None
+    for path in (None, os.path.join(DATA_DIR, "ground_truth_hard.csv")):
+        m = evaluate_against_ground_truth(decisions, truth_path=path)
+        if m and (best is None or m["total_labeled"] > best["total_labeled"]):
+            best = m
+    return best
+
+
 @app.route("/api/status")
 def status():
     client, model = get_client_and_model()
+    store = get_store()
     return jsonify({
         "ai_connected": client is not None,
         "model": model.split("/")[-1] if model else None,
+        "db": store.engine.dialect.name,
+        "db_error": _db_error,
     })
 
 
@@ -265,7 +364,10 @@ def auto_reconcile_endpoint():
         ]
         write_audit_log_exact(orders_with_explanations)
 
+        dkey = make_dataset_key(payments_raw)
         response = {
+            "dataset_key": dkey,
+            "reviews": get_store().get_reviews(dkey),
             "strategy": "exact",
             "decision_reason": decision["reason"],
             "using_uploaded_data": using_uploaded,
@@ -302,9 +404,12 @@ def auto_reconcile_endpoint():
     # ONLY way to see the tolerance engine's accuracy validation is by
     # uploading payment_log.csv + settlement_file.csv — that upload must not
     # be penalized just for being an upload.
-    gt_metrics = evaluate_against_ground_truth(result["decisions"]) if has_ground_truth() else None
+    gt_metrics = _best_ground_truth(result["decisions"])
 
+    dkey = make_dataset_key(payments_raw)
     return jsonify({
+        "dataset_key": dkey,
+        "reviews": get_store().get_reviews(dkey),
         "strategy": "tolerance",
         "decision_reason": decision["reason"],
         "using_uploaded_data": using_uploaded,

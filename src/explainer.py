@@ -21,6 +21,18 @@ logger = get_logger(__name__)
 # stay well under Groq's free-tier rate limits even on a large exception batch.
 MAX_PARALLEL_EXPLANATIONS = 6
 
+# With hundreds of exceptions, one LLM call each makes a run take minutes.
+# Only the largest-gap exceptions get an LLM-written explanation; the rest
+# get the deterministic template (same facts, no network wait).
+EXPLAIN_LLM_LIMIT = int(os.environ.get("EXPLAIN_LLM_LIMIT", "20"))
+
+
+def _gap(d) -> float:
+    try:
+        return abs(float(d.amount_a) - float(d.amount_b))
+    except (TypeError, ValueError):
+        return 0.0
+
 
 def _template_explanation(decision) -> str:
     """Simple, still-useful explanation with zero API cost."""
@@ -90,9 +102,11 @@ def explain_all_exceptions(exceptions) -> dict:
         # No network calls involved — sequential is already instant.
         return {d.payment_id: _template_explanation(d) for d in exceptions}
 
-    results = {}
+    ranked = sorted(exceptions, key=_gap, reverse=True)
+    llm_batch, rest = ranked[:EXPLAIN_LLM_LIMIT], ranked[EXPLAIN_LLM_LIMIT:]
+    results = {d.payment_id: _template_explanation(d) for d in rest}
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_EXPLANATIONS) as pool:
-        future_to_decision = {pool.submit(explain_exception, d): d for d in exceptions}
+        future_to_decision = {pool.submit(explain_exception, d): d for d in llm_batch}
         for future in as_completed(future_to_decision):
             decision = future_to_decision[future]
             try:

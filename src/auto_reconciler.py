@@ -28,12 +28,14 @@ hardcoded anywhere in this file.
 """
 
 import re
+from decimal import Decimal
 import time
 import pandas as pd
 
 from schema_mapper import map_schema
 from matcher import reconcile as tolerance_reconcile
 from logger import get_logger
+from money import D, money_sum
 
 logger = get_logger(__name__)
 
@@ -66,6 +68,7 @@ BANK_CREDIT_HINTS = ["credit", "deposit", "received", "amount"]
 
 MIN_ID_OVERLAP_FOR_EXACT_STRATEGY = 0.5  # at least half the IDs must appear in both sources
 MATH_EPSILON = 0.02
+MATH_EPSILON_D = Decimal(str(MATH_EPSILON))  # same tolerance, compared in exact arithmetic
 
 
 def _score_columns_for_roles(columns: list[str], hints: dict) -> dict:
@@ -297,12 +300,12 @@ def verify_exact(reference_df: pd.DataFrame, fee_df: pd.DataFrame, fee_cols: dic
     results = []
     for _, row in fee_df.iterrows():
         order_id = str(row[fee_id_col])
-        gross = float(row[fee_cols["gross"]])
-        fee = float(row[fee_cols["fee"]])
-        tax = float(row[fee_cols["tax"]]) if has_tax else 0.0
-        net = float(row[fee_cols["net"]])
-        expected_net = round(gross - fee - tax, 2)
-        diff = round(net - expected_net, 2)
+        gross = D(row[fee_cols["gross"]])
+        fee = D(row[fee_cols["fee"]])
+        tax = D(row[fee_cols["tax"]]) if has_tax else Decimal("0.00")
+        net = D(row[fee_cols["net"]])
+        expected_net = gross - fee - tax      # exact: Decimal, not float
+        diff = net - expected_net
         date_a = ref_dates_by_id.get(order_id)
         date_b = row[fee_date_col] if fee_date_col else None
 
@@ -320,7 +323,7 @@ def verify_exact(reference_df: pd.DataFrame, fee_df: pd.DataFrame, fee_cols: dic
                 f"{'matches an existing record' if base_id in ref_ids else 'no matching record in the reference source'}, "
                 f"consistent with a refund or chargeback rather than a new transaction."
             )
-        elif abs(diff) > MATH_EPSILON:
+        elif abs(diff) > MATH_EPSILON_D:
             status = "math_error"
             reason = (
                 f"{gross:.2f} - {fee:.2f} (fee)" + (f" - {tax:.2f} (tax)" if has_tax else "") +
@@ -337,8 +340,8 @@ def verify_exact(reference_df: pd.DataFrame, fee_df: pd.DataFrame, fee_cols: dic
         results.append({
             "order_id": order_id, "status": status, "reason": reason,
             "date_a": date_a, "date_b": date_b,
-            "gross": gross, "fee": fee, "tax": tax if has_tax else None, "net": net,
-            "expected_net": expected_net, "diff": diff,
+            "gross": float(gross), "fee": float(fee), "tax": float(tax) if has_tax else None, "net": float(net),
+            "expected_net": float(expected_net), "diff": float(diff),
         })
 
     status_counts = {}
@@ -378,26 +381,26 @@ def verify_settlement_batches(
     pending_count = len(fee_df) - len(settled_df)
 
     for batch_id, group in settled_df.groupby(batch_id_col):
-        reported_total = round(float(group[fee_cols["net"]].sum()), 2)
+        reported_total = money_sum(group[fee_cols["net"]])
         match_mask = bank_desc.str.contains(re.escape(str(batch_id)), case=False, na=False)
         matched_rows = bank_df[match_mask]
 
         if matched_rows.empty:
             batches.append({
-                "batch_id": str(batch_id), "reported_total": reported_total,
+                "batch_id": str(batch_id), "reported_total": float(reported_total),
                 "bank_deposit": None, "diff": None, "status": "no_bank_record",
                 "reason": f"No bank deposit found yet referencing batch {batch_id}.",
             })
             continue
 
         matched_bank_row_indices.update(matched_rows.index)
-        deposit = round(float(matched_rows[bank_cols["credit"]].sum()), 2)
-        diff = round(deposit - reported_total, 2)
+        deposit = money_sum(matched_rows[bank_cols["credit"]])
+        diff = deposit - reported_total
 
-        if abs(diff) > MATH_EPSILON:
+        if abs(diff) > MATH_EPSILON_D:
             batches.append({
-                "batch_id": str(batch_id), "reported_total": reported_total,
-                "bank_deposit": deposit, "diff": diff, "status": "mismatch",
+                "batch_id": str(batch_id), "reported_total": float(reported_total),
+                "bank_deposit": float(deposit), "diff": float(diff), "status": "mismatch",
                 "reason": (
                     f"Batch {batch_id} should total ₹{reported_total:.2f}, but the bank "
                     f"deposit was ₹{deposit:.2f} — a ₹{abs(diff):.2f} "
@@ -406,8 +409,8 @@ def verify_settlement_batches(
             })
         else:
             batches.append({
-                "batch_id": str(batch_id), "reported_total": reported_total,
-                "bank_deposit": deposit, "diff": diff, "status": "verified",
+                "batch_id": str(batch_id), "reported_total": float(reported_total),
+                "bank_deposit": float(deposit), "diff": float(diff), "status": "verified",
                 "reason": f"Bank deposit of ₹{deposit:.2f} matches the reported batch total exactly.",
             })
 

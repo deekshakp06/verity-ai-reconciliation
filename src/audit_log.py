@@ -33,6 +33,7 @@ def write_audit_log(decisions, explanations=None):
                 "status": d.status,
                 "confidence": d.confidence,
                 "reason": d.reason,
+                "flags": list(getattr(d, "flags", [])),
                 "amount_a": d.amount_a,
                 "amount_b": d.amount_b,
                 "date_a": d.date_a,

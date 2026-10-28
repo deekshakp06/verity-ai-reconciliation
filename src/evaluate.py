@@ -35,17 +35,18 @@ def has_multi_source_ground_truth() -> bool:
     return os.path.exists(GROUND_TRUTH_MULTI_SOURCE_PATH)
 
 
-def evaluate_against_ground_truth(decisions) -> dict | None:
+def evaluate_against_ground_truth(decisions, truth_path: str | None = None) -> dict | None:
     """
     decisions: list of matcher.Decision objects from reconcile()
 
     Returns a dict of precision/recall/accuracy metrics, or None if no
     ground truth file is available (e.g. the user uploaded their own data).
     """
-    if not has_ground_truth():
+    truth_path = truth_path or GROUND_TRUTH_PATH
+    if not os.path.exists(truth_path):
         return None
 
-    truth = pd.read_csv(GROUND_TRUTH_PATH).set_index("txn_id")
+    truth = pd.read_csv(truth_path).set_index("txn_id")
 
     true_positive = 0   # correctly auto-matched a genuinely clean transaction
     false_positive = 0  # auto-matched something that should have been flagged
@@ -171,3 +172,56 @@ def evaluate_exact_against_ground_truth(orders: list[dict]) -> dict | None:
     logger.info("Exact-engine ground-truth evaluation: accuracy=%.2f%% (%d/%d correct)",
                 accuracy, correct, total_labeled)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Command-line report:  python src/evaluate.py
+# Runs the matcher on BOTH test sets and prints a threshold-sensitivity sweep,
+# so the README's numbers are reproducible rather than claimed.
+# ---------------------------------------------------------------------------
+DATASETS = {
+    "demo (generate_data.py)": ("payment_log.csv", "settlement_file.csv", GROUND_TRUTH_PATH),
+    "hard (generate_hard_data.py)": ("hard_payment_log.csv", "hard_settlement_file.csv",
+                                     os.path.join("data", "ground_truth_hard.csv")),
+}
+
+
+def _load(pay_file, set_file):
+    from schema_mapper import map_schema, apply_mapping
+    p = pd.read_csv(os.path.join("data", pay_file))
+    s = pd.read_csv(os.path.join("data", set_file))
+    return (apply_mapping(p, map_schema(p, "payment_log")),
+            apply_mapping(s, map_schema(s, "settlement_file")))
+
+
+def threshold_sweep(payments, settlements, truth_path, thresholds=(80, 85, 90, 92.5, 95, 97)):
+    """Precision/recall at different AUTO_MATCH_THRESHOLD values. In finance a false
+    auto-match costs more than an extra exception, so the trade-off is shown, not hidden."""
+    from matcher import reconcile
+    rows = []
+    for t in thresholds:
+        m = evaluate_against_ground_truth(reconcile(payments, settlements, auto_match_threshold=t)["decisions"], truth_path)
+        rows.append({"threshold": t, **{k: m[k] for k in ("accuracy", "precision", "recall", "false_positive", "false_negative")}})
+    return rows
+
+
+if __name__ == "__main__":
+    import logging
+    logging.disable(logging.INFO)
+    from matcher import reconcile
+    for name, (pf, sf, truth) in DATASETS.items():
+        if not (os.path.exists(os.path.join("data", pf)) and os.path.exists(truth)):
+            print(f"[skip] {name}: files not found (run the matching generate script first)")
+            continue
+        pm, sm = _load(pf, sf)
+        r = reconcile(pm, sm)
+        m = evaluate_against_ground_truth(r["decisions"], truth)
+        print(f"\n=== {name}: {len(pm)} payments, {len(sm)} settlements ===")
+        print(f"accuracy {m['accuracy']}%  precision {m['precision']}%  recall {m['recall']}%  "
+              f"(false auto-matches: {m['false_positive']}, wrongly flagged: {m['false_negative']})  "
+              f"[{r['elapsed_seconds']}s, {r['late_flagged']} late settlements flagged]")
+        for sc, v in m["per_scenario"].items():
+            print(f"  {sc:<22}{v['correct']:>4}/{v['total']:<4} {v['pct']:>6}%")
+        print("  threshold sweep:")
+        for row in threshold_sweep(pm, sm, truth):
+            print(f"    {row['threshold']:<6} precision {row['precision']:>6}%  recall {row['recall']:>6}%  FP {row['false_positive']:<3} FN {row['false_negative']}")

@@ -3,212 +3,209 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verity — AI Reconciliation Agent</title>
+<title>Verity — Reconciliation Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="topbar">
+<div class="shell">
+<aside class="sidebar">
   <div class="brand">
-    <div class="logo">🧾</div>
-    <div>
-      <div class="name">Verity <span class="pill">TRACK 4</span></div>
-      <div class="sub">"Match. Flag. Explain." · AI Reconciliation Agent</div>
-    </div>
+    <div class="mark">V</div>
+    <div><div class="name">Verity</div><div class="tag">Match. Flag. Explain.</div></div>
   </div>
-
-  <nav class="navtabs" id="navtabs">
-    <div class="navtab on" data-page="dashboard">Dashboard</div>
-    <div class="navtab" data-page="upload">Upload Data</div>
-    <div class="navtab" data-page="matched">Matched <span id="nav-matched-count"></span></div>
-    <div class="navtab" data-page="exceptions">Exceptions <span id="nav-exc-count"></span></div>
-    <div class="navtab" data-page="accuracy">Accuracy</div>
-    <div class="navtab" data-page="ask">Ask Verity</div>
+  <nav class="tabs" id="navtabs">
+    <div class="nav-label">Reconciliation</div>
+    <button class="tab on" data-page="overview"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span class="tl">Overview</span></button>
+    <button class="tab" data-page="exceptions"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/></svg><span class="tl">Exceptions</span><span class="count" id="nav-exc-count"></span></button>
+    <button class="tab" data-page="matched"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span class="tl">Matched</span><span class="count" id="nav-matched-count"></span></button>
+    <button class="tab" data-page="accuracy"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="tl">Accuracy</span></button>
+    <div class="nav-label">Workspace</div>
+    <button class="tab" data-page="data"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span class="tl">Data</span></button>
+    <button class="tab" data-page="ask"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="tl">Ask Verity</span></button>
   </nav>
-
-  <div class="status" id="ai-status">
-    <div class="dot off" id="ai-dot"></div>
-    <span id="ai-status-text">Checking connection…</span>
+  <div class="side-foot">
+    <div class="status"><span class="dot off" id="ai-dot"></span><span id="ai-status-text">Checking…</span></div>
+    <div class="status" style="margin-top:8px"><span class="dot off" id="db-dot"></span><span id="db-status-text">Database…</span></div>
   </div>
-</div>
-
+</aside>
+<div class="content">
+<div class="pagebar"><h2 id="page-title">Overview</h2><span class="muted" id="page-sub">Reconcile payments against settlements</span></div>
+<main>
 <div id="status-banner"></div>
 
-<!-- ===================== DASHBOARD PAGE ===================== -->
-<section class="page" data-page="dashboard">
+<!-- ============ OVERVIEW ============ -->
+<section class="page" data-page="overview">
 
-  <div class="hero">
-    <div>
-      <h1>Verity <span>Reconciliation Engine</span></h1>
-      <p style="font-weight:600;color:#f59e0b;margin-bottom:4px;">"Match. Flag. Explain."</p>
-      <p>Auto-detects exact verification or tolerance matching, checks settlement
-         batches against real bank deposits, and explains every exception — never a guess.</p>
+  <div class="toolbar">
+    <div class="seg" id="dataset-seg">
+      <button class="on" data-ds="hard" data-tip="600 synthetic payments with typos, duplicates, late settlements and odd fees planted on purpose. It has an answer key, so accuracy is measured.">Messy data demo <small>600 payments, planted errors</small></button>
+      <button data-ds="demo" data-tip="A small set in Razorpay's own report layout, with fee and tax columns plus a bank statement. Shows exact arithmetic and batch-versus-bank checks.">Razorpay format demo <small>fees, tax + bank statement</small></button>
+      <button data-ds="upload" data-tip="Your own CSV files: payments and settlements, plus an optional bank statement. Column names do not need to match anything.">Upload your files <small id="upload-small">none yet</small></button>
     </div>
-    <button class="cta" id="run-btn">▶ Run Reconciliation</button>
-  </div>
-
-  <div class="dl-row" id="dl-row" style="display:none;">
-    <button class="cta cta-outline" id="download-btn">⬇ Download Report (CSV)</button>
-  </div>
-
-  <div class="metrics">
-    <div class="metric-card">
-      <div class="label">✅ MATCH RATE</div>
-      <div class="value" id="m-match-rate">—</div>
-      <div class="foot foot-green" id="m-match-foot">Run reconciliation to see results</div>
-    </div>
-    <div class="metric-card">
-      <div class="label">🎯 ACCURACY</div>
-      <div class="value" id="m-accuracy">—</div>
-      <div class="foot foot-muted" id="m-accuracy-foot">Demo data only</div>
-    </div>
-    <div class="metric-card">
-      <div class="label">⚠️ EXCEPTIONS</div>
-      <div class="value" id="m-exceptions">—</div>
-      <div class="foot foot-amber">🚩 Flagged, not guessed</div>
-    </div>
-    <div class="metric-card">
-      <div class="label">⚡ THROUGHPUT</div>
-      <div class="value" id="m-throughput">—</div>
-      <div class="foot foot-muted" id="m-throughput-foot">—</div>
+    <div class="toolbar-actions">
+      <button class="btn" id="download-btn">Download CSV</button>
+      <button class="btn" id="excel-btn">Download Excel</button>
+      <button class="btn primary" id="run-btn">Run reconciliation</button>
     </div>
   </div>
 
-  <div class="panel" id="batch-panel" style="display:none;">
-    <h3>🏛️ Multi-Source: Settlement Batches vs. Bank Deposits</h3>
-    <div class="sub" id="batch-sub">Reported settlement totals verified against actual bank credits</div>
-    <div id="batch-list" class="scroll-list" style="max-height:280px;"></div>
-    <div id="batch-unrelated" style="margin-top:14px;"></div>
+  <!-- Empty state: real measured numbers, so the page is never blank -->
+  <div id="overview-empty">
+    <div class="howto">
+      <div class="how"><span class="how-n">1</span><div><b>Pick your data</b><p>Try a built-in demo, or upload a payments file and a settlements file (CSV).</p></div></div>
+      <div class="how"><span class="how-n">2</span><div><b>Run reconciliation</b><p>Verity matches each payment to its settlement in about a second.</p></div></div>
+      <div class="how"><span class="how-n">3</span><div><b>Review the exceptions</b><p>Anything it isn't sure about is listed with a reason. You decide, add a note, and export a report.</p></div></div>
+    </div>
+    <div class="section-title">Measured on the messy data demo <span class="muted">(python src/evaluate.py)</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k-label">Accuracy</div><div class="k-value">100%</div><div class="k-foot">600 labelled payments</div></div>
+      <div class="kpi"><div class="k-label">Precision</div><div class="k-value">100%</div><div class="k-foot">of auto-matches were correct</div></div>
+      <div class="kpi"><div class="k-label">Recall</div><div class="k-value">100%</div><div class="k-foot">no clean payment sent to review</div></div>
+      <div class="kpi"><div class="k-label">Known limit</div><div class="k-value sm">One fee rate per file</div><div class="k-foot">fee check is skipped on mixed-fee data</div></div>
+    </div>
+
+    <div class="section-title">How it decides</div>
+    <ol class="steps">
+      <li><b>Read the columns.</b> Maps unfamiliar column names itself.</li>
+      <li><b>Pick the method.</b> Exact <code>Gross − Fee − Tax = Net</code> if a fee breakdown exists, otherwise confidence-scored matching on reference, amount and date.</li>
+      <li><b>Refuse to guess.</b> Wrong reference, duplicate, or a gap it can't explain goes to Exceptions with a reason.</li>
+      <li><b>Explain and log.</b> Each exception gets a plain-English explanation and an audit-log entry.</li>
+    </ol>
   </div>
 
-  <div class="arch-section">
-    <h4>🏗️ How Verity works — architecture</h4>
-    <div class="sub">Auto-detects the right technique from your data · rule-based core with LLM assistance, never a black box</div>
-    <div class="arch-flow">
-      <div class="arch-box">
-        <div class="emoji">📄</div>
-        <div class="title">Your Data</div>
-        <div class="desc">CSV, Excel, or SQL — 2 files required, a 3rd bank statement optional</div>
+  <div id="overview-results" hidden>
+    <div class="statstrip" id="kpis"></div>
+
+    <div class="dash">
+      <div class="card">
+        <div class="card-head"><div><h3>Where your payment value went</h3><div class="muted" id="value-sub"></div></div></div>
+        <div id="totals"></div>
       </div>
-      <div class="arch-arrow">→</div>
-      <div class="arch-box">
-        <div class="emoji">🧭</div>
-        <div class="title">Auto-Detection</div>
-        <div class="desc">Picks exact math or tolerance matching based on what the data actually offers</div>
-      </div>
-      <div class="arch-arrow">→</div>
-      <div class="arch-box">
-        <div class="emoji">✅</div>
-        <div class="title">Verify or Match</div>
-        <div class="desc">Exact: Gross − Fee − Tax = Net. Tolerance: confidence-scored amount/date/reference</div>
-      </div>
-      <div class="arch-arrow">→</div>
-      <div class="arch-box">
-        <div class="emoji">🏛️</div>
-        <div class="title">Batch Check</div>
-        <div class="desc">If a bank file is given, settlement batches verified against real deposits</div>
-      </div>
-      <div class="arch-arrow">→</div>
-      <div class="arch-box">
-        <div class="emoji">💬</div>
-        <div class="title">Explain &amp; Log</div>
-        <div class="desc">AI-written explanations for every exception, every decision auditable</div>
+      <div class="card blue" id="review-card">
+        <div class="b-note" id="summary-sentence"></div>
+        <div><div class="b-big" id="open-big"></div><div class="b-prog"><i id="open-prog" style="width:0"></i></div><div class="b-foot" id="open-foot"></div></div>
+        <button class="btn light" data-goto="exceptions" id="start-review-btn">Review exceptions</button>
       </div>
     </div>
-    <div class="tag-row">
-      <div class="tag">🐍 Python + Pandas</div>
-      <div class="tag">🧠 Groq LLaMA (free tier)</div>
-      <div class="tag">🔍 RapidFuzz matching</div>
-      <div class="tag">🌐 Flask + vanilla JS</div>
-      <div class="tag">✅ 55 automated tests</div>
-    </div>
-  </div>
 
-</section>
-
-<!-- ===================== UPLOAD DATA PAGE ===================== -->
-<section class="page" data-page="upload" hidden>
-  <div class="panel">
-    <h3>📤 Try it on your own data</h3>
-    <div class="sub">Upload any two transaction CSVs — column names don't need to match anything. Leave both empty to use the built-in demo dataset.</div>
-    <div class="upload-row">
-      <label class="upload-box" id="payment-drop">
-        <input type="file" id="payment-file" accept=".csv" hidden>
-        <span class="upload-icon">📄</span>
-        <span class="upload-label" id="payment-file-label">Payment / source file (CSV)</span>
-      </label>
-      <label class="upload-box" id="settlement-drop">
-        <input type="file" id="settlement-file" accept=".csv" hidden>
-        <span class="upload-icon">🏦</span>
-        <span class="upload-label" id="settlement-file-label">Settlement / comparison file (CSV)</span>
-      </label>
+    <div class="dash">
+      <div class="card">
+        <div class="card-head"><h3>Largest exceptions</h3><button class="link" data-goto="exceptions">View all</button></div>
+        <div id="top-exceptions"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Exceptions by type</h3><button class="link" data-goto="exceptions">View all</button></div>
+        <div id="exc-breakdown"></div>
+      </div>
     </div>
-    <div class="upload-row" style="margin-top:8px;">
-      <label class="upload-box" id="bank-drop" style="border-color:#2a3348;">
-        <input type="file" id="bank-file" accept=".csv" hidden>
-        <span class="upload-icon">🏛️</span>
-        <span class="upload-label" id="bank-file-label">Bank statement (optional) — enables multi-source batch verification</span>
-      </label>
-    </div>
-    <button class="cta" id="clear-upload-btn" style="background:#181c26;color:#e6e8ec;box-shadow:none;">✕ Clear uploads, use demo data</button>
-    <div class="data-preview" id="data-preview"></div>
-  </div>
-  <button class="cta" id="run-btn-2">▶ Run Reconciliation</button>
-</section>
 
-<!-- ===================== MATCHED RECORDS PAGE ===================== -->
-<section class="page" data-page="matched" hidden>
-  <div class="panel">
-    <h3>✅ Matched Records — auto-closed with high confidence</h3>
-    <div class="sub">Every claimed match is inspectable here — not just a percentage. Scroll for more.</div>
-    <div id="matched-list" class="scroll-list">
-      <p class="empty-state">Run reconciliation from the Dashboard tab to see matched records here.</p>
+    <div class="dash three">
+      <div class="card"><div class="card-head"><h3>Settlement speed</h3></div><div id="speed-card"></div></div>
+      <div class="card"><div class="card-head"><h3>Match confidence</h3></div><div id="conf-card"></div></div>
+      <div class="card"><div class="card-head"><h3>Recent reviews</h3><button class="link" data-goto="exceptions">Open queue</button></div><div id="recent-card"></div></div>
+    </div>
+
+    <div class="dash even">
+      <div class="card" id="close-card"></div>
+      <div id="insights"></div>
+    </div>
+    <p class="muted" id="gt-line" style="margin:0 0 16px"></p>
+
+    <div class="card" id="batch-panel" hidden>
+      <div class="card-head"><h3>Settlement batches vs bank deposits</h3><span class="muted" id="batch-sub"></span></div>
+      <div id="batch-list"></div>
+      <div id="batch-unrelated"></div>
     </div>
   </div>
 </section>
 
-<!-- ===================== EXCEPTIONS PAGE ===================== -->
+<!-- ============ EXCEPTIONS ============ -->
 <section class="page" data-page="exceptions" hidden>
-  <div class="panel">
-    <div class="panel-head">
-      <h3>🔎 Exceptions — not auto-matched on purpose</h3>
-      <div class="filter-tabs" id="filter-tabs">
-        <div class="on" data-filter="all">All</div>
-        <div data-filter="amount">Amount</div>
-        <div data-filter="duplicate">Duplicate</div>
-        <div data-filter="delayed">Delayed</div>
+  <div class="card">
+    <div class="card-head wrap">
+      <div><h3>Exceptions</h3><div class="muted">Not auto-matched on purpose. Click a row to see why, then record your decision.</div></div>
+      <div class="tools">
+        <input type="search" id="exc-search" placeholder="Search ID or reason">
+        <button class="btn" id="next-open-btn">Next open exception →</button>
       </div>
     </div>
-    <div class="sub">Every flag has a specific, auditable reason · scroll for more</div>
-    <div id="exceptions-list" class="scroll-list">
-      <p class="empty-state">Run reconciliation from the Dashboard tab to see exceptions here.</p>
+    <div class="filterbar">
+      <div class="chips" id="filter-tabs"></div>
+      <div class="selects">
+        <label class="sel"><span>Status</span><select id="status-select"></select></label>
+        <label class="sel"><span>Sort by</span><select id="sort-select"><option value="gap">Largest gap</option><option value="oldest">Oldest payment</option><option value="newest">Newest payment</option></select></label>
+      </div>
     </div>
+    <div id="exceptions-list"><div class="empty-state"><b>No exceptions yet</b><p>Run a reconciliation from Overview. Payments Verity can't confidently match will be listed here with a reason.</p><button class="btn primary" data-goto="overview">Go to Overview</button></div></div>
   </div>
 </section>
 
-<!-- ===================== ACCURACY PAGE ===================== -->
+<!-- ============ MATCHED ============ -->
+<section class="page" data-page="matched" hidden>
+  <div class="card">
+    <div class="card-head wrap">
+      <div><h3>Matched</h3><div class="muted">Auto-closed with high confidence.</div></div>
+      <label class="check"><input type="checkbox" id="late-only"> Only late settlements</label>
+    </div>
+    <div id="matched-list"><div class="empty-state"><b>No matches yet</b><p>Payments that Verity matches with high confidence are listed here, including any that settled late.</p><button class="btn primary" data-goto="overview">Go to Overview</button></div></div>
+  </div>
+</section>
+
+<!-- ============ ACCURACY ============ -->
 <section class="page" data-page="accuracy" hidden>
-  <div class="panel">
-    <h3>📊 Accuracy — validated against ground truth</h3>
-    <div class="sub">Only available on the built-in demo dataset, since that's the only data where the correct answer is known in advance.</div>
-    <div id="accuracy-content">
-      <p class="empty-state">Run reconciliation on the demo dataset to see accuracy metrics here.</p>
+  <div id="accuracy-content"><div class="card"><div class="empty-state"><b>No accuracy numbers yet</b><p>Run one of the demo datasets. They come with an answer key, so Verity can show how many decisions were correct.</p><button class="btn primary" data-goto="overview">Go to Overview</button></div></div></div>
+</section>
+
+<!-- ============ DATA ============ -->
+<section class="page" data-page="data" hidden>
+  <div class="card">
+    <div class="card-head"><div><h3>Use your own files</h3><div class="muted">CSV only. Column names don't need to match anything.</div></div></div>
+    <div class="slots">
+      <label class="slot" id="payment-drop">
+        <input type="file" id="payment-file" accept=".csv" hidden>
+        <span class="slot-title">Payments</span>
+        <span class="slot-file" id="payment-file-label">Choose CSV</span>
+      </label>
+      <label class="slot" id="settlement-drop">
+        <input type="file" id="settlement-file" accept=".csv" hidden>
+        <span class="slot-title">Settlements</span>
+        <span class="slot-file" id="settlement-file-label">Choose CSV</span>
+      </label>
+      <label class="slot optional" id="bank-drop">
+        <input type="file" id="bank-file" accept=".csv" hidden>
+        <span class="slot-title">Bank statement <em>optional</em></span>
+        <span class="slot-file" id="bank-file-label">Choose CSV</span>
+      </label>
     </div>
+    <div class="row-end">
+      <button class="btn" id="clear-upload-btn">Clear files</button>
+      <button class="btn primary" id="run-btn-2">Run on my files</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Built-in demo data</h3><span class="muted">first 5 rows of each file</span></div>
+    <div class="previews" id="data-preview"></div>
   </div>
 </section>
 
-<!-- ===================== ASK VERITY PAGE ===================== -->
+<!-- ============ ASK ============ -->
 <section class="page" data-page="ask" hidden>
-  <div class="panel">
-    <h3>💬 Ask Verity</h3>
-    <div class="sub">Ask about the reconciliation run in plain English</div>
-    <div id="chat-log" class="scroll-list" style="max-height:420px;"></div>
+  <div class="card">
+    <div class="card-head"><div><h3>Ask Verity</h3><div class="muted">Questions about the last run, answered from the audit log.</div></div></div>
+    <div id="chat-log"><p class="empty">Try “why didn't TXN00042 match?” or “which exceptions are duplicates?”</p></div>
     <div class="ask-row">
-      <input type="text" id="ask-input" placeholder='e.g. "why didn&#39;t TXN00042 match?" or "how many were amount mismatches?"'>
-      <button id="ask-send">Send →</button>
+      <input type="text" id="ask-input" placeholder="Ask about a payment ID or a type of exception">
+      <button class="btn primary" id="ask-send">Send</button>
     </div>
   </div>
 </section>
+</main>
+</div>
+</div>
 
 <script src="script.js"></script>
 </body>

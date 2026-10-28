@@ -6,3 +6,5 @@ venv/
 .venv/
 logs/*.log
 logs/*.jsonl
+
+logs/*.db

@@ -16,6 +16,9 @@ Verity matches payments to bank settlements, flags anything it is unsure about w
 Built by [Deeksha K P](https://www.linkedin.com/in/deeksha-k-p-392773293/) 
 
 ---
+![Verity dashboard](dashboard.png)
+
+*Demo on a deliberately messy set: 600 payments with 210 planted errors (typos, duplicates, late settlements, fee deviations). Verity auto-matched the 390 clean ones, flagged all 210 problem cases with a reason, and scored 100% against the answer key. The 65% match rate is expected on this set, not a weakness.*
 
 ## 1. The problem
 

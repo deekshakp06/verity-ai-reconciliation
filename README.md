@@ -1,11 +1,19 @@
-# Verity — AI Reconciliation Agent
+# Verity: AI Reconciliation Agent
 ### *"Match. Flag. Explain."*
-### Razorpay Buildathon 2026 — Track 4: AI Finance Controller
+Razorpay Buildathon 2026, Track 4: AI Finance Controller
 
-**🔴 Live demo:** [verity-ai-reconciliation.onrender.com](https://verity-ai-reconciliation.onrender.com)
-*(free tier sleeps after inactivity — open the link once and wait a few seconds)*
+**🔴 [Live demo](https://verity-ai-reconciliation.onrender.com)** *(free tier sleeps; open once and wait a few seconds)*
 
-Built by Deeksha K P 
+## In short
+Verity matches payments to bank settlements, flags anything it is unsure about with a clear reason, and explains each flag in plain English. The AI only explains; it never decides a match.
+
+- **471/471** payments classified correctly on a test with real Olist order amounts (an Excel-style exact lookup got 454/471)
+- **First-pass matching drops from about 26 minutes by hand to a few seconds**
+- **100%** on an adversarial test set (600 records) after fixing 24 false matches
+- **87 passing tests**, deployed live on Render
+- **Stack:** Python, Flask, Pandas, RapidFuzz, PostgreSQL (Supabase), Groq
+
+Built by [Deeksha K P](https://www.linkedin.com/in/deeksha-k-p-392773293/) 
 
 ---
 
